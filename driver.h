@@ -21,11 +21,11 @@ namespace myos
   
   class DriverManager
   {
-  private:
+   public:
     Driver* drivers[255];
     int numDrivers;
     
-  public:
+ 
     DriverManager();
     ~DriverManager();
     void AddDriver(Driver*);

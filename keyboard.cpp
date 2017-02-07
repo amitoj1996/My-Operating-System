@@ -95,6 +95,7 @@ uint32_t KeyboardDriver::HandleInterrupt(uint32_t esp)
     case 0x2A: Shift = true; break;
     case 0xAA: Shift = false; break;
     case 0x36: Shift = true; break;
+   
      case 0x86: Shift = false; break;
     default:
       if(key < 80)

@@ -4,6 +4,9 @@
 #include <common/types.h>
 #include <hardwarecommunication/port.h>
 #include <gdt.h>
+#include <multitasking.h>
+
+
 namespace myos 
 {
   namespace hardwarecommunication 
@@ -28,6 +31,7 @@ namespace myos
 	static InterruptManager* ActiveInterruptManager;//for calling the static object through the static function
 	
 	InterruptHandler* handlers[256];
+	TaskManager *taskManager;
         struct GateDescriptor
         {
             myos::common::uint16_t handlerAddressLowBits;
@@ -61,7 +65,7 @@ namespace myos
     
     public:
         
-        InterruptManager(myos::GlobalDescriptorTable* gdt);
+        InterruptManager(myos::GlobalDescriptorTable* gdt,myos::TaskManager *taskManager);
         ~InterruptManager();
         void Activate();
 	void Deactivate();
@@ -71,6 +75,7 @@ namespace myos
         static void HandleInterruptRequest0x01();
         static void HandleInterruptRequest0x00();
 	static void HandleInterruptRequest0x0C();
+	static void HandleInterruptRequest0x80();
         
     };
   }

@@ -1,14 +1,25 @@
 #include <common/types.h>
 #include <gdt.h>
+#include <memorymanagement.h>
 #include <hardwarecommunication/interrupts.h>
+#include <hardwarecommunication/pci.h>
 #include <drivers/keyboard.h>
 #include <drivers/mouse.h>
 #include <drivers/driver.h>
+#include <drivers/vga.h>
+#include <gui/desktop.h>
+#include <gui/window.h>
+#include <filesystem/msdospart.h>
+#include <drivers/ata.h>
+#include <syscalls.h>
+#include <multitasking.h>
+#include <gui/widget.h>
 using namespace myos;
 using namespace myos::common;
-
+using namespace myos::gui;
 using namespace myos::drivers;
 using namespace myos::hardwarecommunication;
+using namespace myos::filesystem; 
 void printf(char* str)
 {
         static uint16_t* VideoMemory = (uint16_t*)0xb8000;
@@ -97,6 +108,22 @@ public:
 	   }
 };
 
+
+void sysprintf(char* str)
+{
+  asm("int $0x80" : : "a" (4), "b" (str));
+}
+void taskA()
+{
+  
+    sysprintf("A");
+}
+
+void taskB()
+{
+  
+    sysprintf("B");
+}
 typedef void (*constructor)();
 extern "C" constructor start_ctors;
 extern "C" constructor end_ctors;
@@ -112,21 +139,97 @@ extern "C" void kernelMain(void* multiboot_structure, uint32_t magicnumber)
     printf("Hello World! --- Amitoj Singh :-)\n");
     
     GlobalDescriptorTable gdt;
-    InterruptManager interrupts(&gdt);
     
+    uint32_t* memupper = (uint32_t*)(((size_t)multiboot_structure) + 8);
+    size_t heap = 10*1024*1024;
+    MemoryManager memoryManager(heap, (*memupper)*1024 - heap - 10*1024);//the size is the entire size of the ram minus the 10 mb that is given to the os and minus the 10kb
+    
+    
+    printf("heap: 0x");
+    printfHex((heap >>24) & 0xFF);
+    printfHex((heap >>16) & 0xFF);
+    printfHex((heap >>8) & 0xFF);
+    printfHex((heap) & 0xFF);
+    
+    void* allocated = memoryManager.malloc(1024);
+    
+    printf("\nallocated: 0x");
+    printfHex(((size_t)allocated >>24) & 0xFF);
+    printfHex(((size_t)allocated >>16) & 0xFF);
+    printfHex(((size_t)allocated >>8) & 0xFF);
+    printfHex((size_t)allocated & 0xFF);
+    printf("\n");
+    
+    
+    
+    TaskManager taskManager;
+    
+    Task task1(&gdt, taskA);
+    Task task2(&gdt, taskB);
+    taskManager.AddTask(&task1);
+    taskManager.AddTask(&task2);
+    
+    InterruptManager interrupts(&gdt, &taskManager);
+    SyscallHandler syscall(&interrupts, 0x80);
+     //VideoGraphicsArray vga;
+    
+     //Desktop desktop(320,200,0x00,0x00,0xA8);
     printf("Inititalizing Hardware, Stage 1\n");
     DriverManager drvManager;
-    PrintfKeyboardEventHandler kbhandler;
-      KeyboardDriver keyboard(&interrupts, &kbhandler);
+     PrintfKeyboardEventHandler kbhandler;
+       KeyboardDriver keyboard(&interrupts, &kbhandler);
+       //KeyboardDriver keyboard(&interrupts, &desktop);
       drvManager.AddDriver(&keyboard);
       
-      MouseToConsole mousehandler;
-      MouseDriver mouse(&interrupts, &mousehandler);
+       MouseToConsole mousehandler;
+       MouseDriver mouse(&interrupts, &mousehandler);
+       //MouseDriver mouse(&interrupts, &desktop);
       drvManager.AddDriver(&mouse);
+      
+      PeripheralComponentInterconnectController PCIController;
+      PCIController.SelectDrivers(&drvManager, &interrupts);
+      
+      
+      
        printf("Inititalizing Hardware, Stage 2\n");
       drvManager.ActivateAll();
        printf("Inititalizing Hardware, Stage 3\n");
-    interrupts.Activate();
+   
+       //first//interrupt 14
+       AdvancedTechnologyAttachment ata0m(0x1F0, true);//master
+       printf("ATA Primary Master : ");
+       ata0m.Identify();
+       
+       AdvancedTechnologyAttachment ata0s(0x1F0, true);//slave
+       printf("ATA Primary Slave : ");
+       ata0s.Identify();
+       
+       MSDOSPartitionTable::ReadPartitions(&ata0s);
+       
+       
+       //char* atabuffer = "AmitojSingh";
+       //ata0s.Write28(0,(uint8_t*)atabuffer,11);
+       //ata0s.Flush();
+       //ata0s.Read28(0,(uint8_t*)atabuffer,11);
+       //second//interupt 15
+       AdvancedTechnologyAttachment ata1m(0x170, true);
+       AdvancedTechnologyAttachment ata1s(0x170, false);
+       
+       //third : 0x1E8
+       //fourth : 0x168
+       
+       interrupts.Activate();
+       /*
+      vga.SetMode(320,200,8);
+      Window win1(&desktop, 10,10,10,20,0xA8,0x00,0x00);
+      desktop.AddChild(&win1);
+      Window win2(&desktop, 40,15,30,30,0x00,0xA8,0x00);
+      desktop.AddChild(&win2);   
+   */
     
-    while(1);
+    while(1)
+    {
+        //desktop.Draw(&vga);
+    }
 }
+ 

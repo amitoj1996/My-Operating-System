@@ -48,9 +48,9 @@ InterruptManager* InterruptManager::ActiveInterruptManager = 0;
         }
         
         
-InterruptManager::InterruptManager(GlobalDescriptorTable* gdt):picMasterCommand(0x20),picMasterData(0x21), picSlaveCommand(0xA0), picSlaveData(0xA1)
+InterruptManager::InterruptManager(GlobalDescriptorTable* gdt, TaskManager *taskManager):picMasterCommand(0x20),picMasterData(0x21), picSlaveCommand(0xA0), picSlaveData(0xA1)
 {
- ;
+    this->taskManager = taskManager;
     uint32_t CodeSegment = gdt->CodeSegmentSelector();
     const uint8_t IDT_INTERRUPT_GATE = 0xE;
     
@@ -64,6 +64,7 @@ InterruptManager::InterruptManager(GlobalDescriptorTable* gdt):picMasterCommand(
     SetInterruptDescriptorTableEntry(0x20, CodeSegment, &HandleInterruptRequest0x00, 0,IDT_INTERRUPT_GATE);
      SetInterruptDescriptorTableEntry(0x21, CodeSegment, &HandleInterruptRequest0x01, 0,IDT_INTERRUPT_GATE);
      SetInterruptDescriptorTableEntry(0x2C, CodeSegment, &HandleInterruptRequest0x0C, 0,IDT_INTERRUPT_GATE);
+     SetInterruptDescriptorTableEntry(0x80, CodeSegment, &HandleInterruptRequest0x80, 0, IDT_INTERRUPT_GATE);
      
      picMasterCommand.Write(0x11);
      picSlaveCommand.Write(0x11);
@@ -136,6 +137,10 @@ uint32_t InterruptManager::DoHandleInterrupt(uint8_t interrupt, uint32_t esp)
       printf("UNHANDLED INTERRUPT 0x");
       printfHex(interrupt);
       
+    }
+    if(interrupt == 0x20)
+    {
+      esp = (uint32_t)taskManager->Schedule((CPUState*)esp);
     }
     
     if(0x20 <=interrupt && interrupt < (0x20) + 16)
